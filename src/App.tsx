@@ -24,8 +24,14 @@ function App() {
 	const [loading, setLoading] = useState<boolean>(true);
 	const [error, setError] = useState<string | null>(null);
 	const [nameInput, setNameInput] = useState<string>('');
+	const [debouncedNameInput, setDebouncedNameInput] =
+		useState<string>(nameInput);
 	const [citySelector, setCitySelector] = useState<string>('');
 	const [oldestCheckbox, setOldestCheckbox] = useState<boolean>(false);
+	const [sortBy, setSortBy] = useState<string>('');
+	const [sortAsc, setSortAsc] = useState<boolean>(true);
+
+	const cols = ['name', 'city', 'birthday'];
 
 	useEffect(() => {
 		fetch('https://dummyjson.com/users')
@@ -52,14 +58,42 @@ function App() {
 	}, []);
 
 	useEffect(() => {
-		setFilteredUsers(
-			users.filter(
-				(u) =>
-					u.name.toLowerCase().includes(nameInput.toLowerCase()) &&
-					u.city.toLowerCase().includes(citySelector.toLowerCase())
-			)
+		let list = users.filter(
+			(u) =>
+				u.name
+					.toLowerCase()
+					.includes(debouncedNameInput.toLowerCase()) &&
+				u.city.toLowerCase().includes(citySelector.toLowerCase())
 		);
-	}, [users, nameInput, citySelector]);
+
+		if (sortBy !== '') {
+			list = list.sort((a, b) => {
+				if (
+					a[sortBy as keyof FilteredUser] <
+					b[sortBy as keyof FilteredUser]
+				) {
+					return sortAsc ? -1 : 1;
+				}
+				if (
+					a[sortBy as keyof FilteredUser] >
+					b[sortBy as keyof FilteredUser]
+				) {
+					return sortAsc ? 1 : -1;
+				}
+				return 0;
+			});
+		}
+
+		setFilteredUsers(list);
+	}, [users, debouncedNameInput, citySelector, sortBy, sortAsc]);
+
+	useEffect(() => {
+		const timeoutId = setTimeout(() => {
+			setDebouncedNameInput(nameInput);
+		}, 500);
+
+		return () => clearTimeout(timeoutId);
+	}, [nameInput]);
 
 	const handleNameInput = (e: ChangeEvent<HTMLInputElement>) => {
 		setNameInput(e.target.value);
@@ -71,6 +105,15 @@ function App() {
 
 	const handleOldestCheckbox = (e: ChangeEvent<HTMLInputElement>) => {
 		setOldestCheckbox(e.target.checked);
+	};
+
+	const handleSortBy = (col: string) => {
+		if (sortBy === col) {
+			setSortAsc(!sortAsc);
+		} else {
+			setSortBy(col);
+			setSortAsc(true);
+		}
 	};
 
 	const updateUsersList = (list: User[]) => {
@@ -109,7 +152,7 @@ function App() {
 		return (
 			<div className="container max-w-3xl p-8 flex items-center justify-center min-h-screen">
 				<div className="animate-spin inline-block size-6 border-[3px] border-current border-t-transparent text-slate-600 rounded-full">
-					<span className="sr-only">Loading...</span>
+					<span className="sr-only">Loooooooading... 👀</span>
 				</div>
 			</div>
 		);
@@ -118,25 +161,25 @@ function App() {
 	if (error) {
 		return (
 			<div className="container max-w-3xl p-8 flex items-center justify-center min-h-screen">
-				<div>Error: {error}</div>
+				<div>☢️ Error: {error}</div>
 			</div>
 		);
 	}
 
 	return (
-		<div className="container max-w-4xl p-8 gap-4 flex flex-col">
-			<div className="columns-3">
+		<div className="container max-w-4xl p-2 md:p-8 gap-2 md:gap-4 flex flex-col">
+			<div className="flex flex-col md:flex-row columns-1 md:columns-3 gap-2 md:gap-4">
 				<input
 					type="text"
 					id="input-label"
-					className="py-3 px-4 block w-full border border-slate-300 rounded-lg text-sm focus:border-slate-600"
+					className="py-3 px-4 block w-full border border-slate-300 rounded-lg text-sm focus:border-slate-600 shadow"
 					placeholder="Name"
 					onChange={handleNameInput}
 				/>
 
 				<select
 					id="cities"
-					className="py-3 px-4 block w-full border border-slate-300 rounded-lg text-sm focus:border-slate-600"
+					className="py-3 px-4 block w-full border border-slate-300 rounded-lg text-sm focus:border-slate-600 shadow"
 					onChange={handleCitySelector}
 				>
 					<option value="" className="px-4 py-4">
@@ -152,11 +195,10 @@ function App() {
 
 				<label
 					htmlFor="oldestCheckbox"
-					className="flex p-3 w-full bg-white border border-slate-300 rounded-lg text-sm"
+					className="flex p-3 w-full bg-white border border-slate-300 rounded-lg text-sm  shadow"
 				>
 					<input
 						type="checkbox"
-						className="shrink-0 mt-0.5 border-slate-300 rounded"
 						id="oldestCheckbox"
 						onChange={handleOldestCheckbox}
 					/>
@@ -167,19 +209,25 @@ function App() {
 				</label>
 			</div>
 
-			<div className="border rounded-lg overflow-hidden">
+			<div className="border border-slate-300 rounded-lg overflow-hidden shadow">
 				<table className="min-w-full divide-y divide-slate-300">
 					<thead>
-						<tr>
-							<th className="px-4 py-2 text-start text-xs font-medium text-slate-600 uppercase">
-								Name
-							</th>
-							<th className="px-4 py-2 text-start text-xs font-medium text-slate-600 uppercase">
-								City
-							</th>
-							<th className="px-4 py-2 text-start text-xs font-medium text-slate-600 uppercase">
-								Birthday
-							</th>
+						<tr className="bg-slate-100">
+							{cols.map((col) => (
+								<th
+									key={col}
+									className="px-2 md:px-4 py-2 text-start text-xs font-medium text-slate-600 uppercase cursor-pointer"
+									onClick={() => handleSortBy(col)}
+								>
+									{col}
+									&nbsp;
+									{sortBy === col
+										? sortAsc
+											? '⬇️'
+											: '⬆️'
+										: ''}
+								</th>
+							))}
 						</tr>
 					</thead>
 
@@ -190,17 +238,17 @@ function App() {
 									key={user.id}
 									className={
 										user.isOldest && oldestCheckbox
-											? 'bg-slate-200'
-											: ''
+											? 'bg-slate-200 hover:bg-slate-100 transition'
+											: 'bg-white hover:bg-slate-100 '
 									}
 								>
-									<td className="px-4 py-2 text-slate-800">
+									<td className="px-2 md:px-4 py-2 text-slate-800">
 										{user.name}
 									</td>
-									<td className="px-4 py-2 text-slate-800">
+									<td className="px-2 md:px-4 py-2 text-slate-800">
 										{user.city}
 									</td>
-									<td className="px-4 py-2 text-slate-800">
+									<td className="px-2 md:px-4 py-2 text-slate-800">
 										{moment(user.birthday).format(
 											'DD.MM.YYYY'
 										)}
@@ -210,7 +258,7 @@ function App() {
 						) : (
 							<tr>
 								<td
-									className="text-center px-8 py-4 text-slate-800"
+									className="text-center px-8 py-4 text-slate-800 bg-white"
 									colSpan={3}
 								>
 									No users found
