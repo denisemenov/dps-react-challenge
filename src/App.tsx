@@ -1,4 +1,5 @@
 import { useEffect, useState, ChangeEvent } from 'react';
+import moment, { Moment } from 'moment';
 
 export interface User {
 	id: number;
@@ -11,8 +12,9 @@ export interface User {
 export interface FilteredUser {
 	id: number;
 	name: string;
-	birthday: string;
+	birthday: Moment;
 	city: string;
+	isOldest: boolean;
 }
 
 function App() {
@@ -22,25 +24,18 @@ function App() {
 	const [loading, setLoading] = useState<boolean>(true);
 	const [error, setError] = useState<string | null>(null);
 	const [nameInput, setNameInput] = useState<string>('');
-	const [cityInput, setCityInput] = useState<string>('');
+	const [citySelector, setCitySelector] = useState<string>('');
+	const [oldestCheckbox, setOldestCheckbox] = useState<boolean>(false);
 
 	useEffect(() => {
 		fetch('https://dummyjson.com/users')
 			.then((response) => response.json())
-			.then(({ users }) => {
-				const updatedUsers = users.map((u: User) => {
-					return {
-						id: u.id,
-						name: `${u.firstName} ${u.lastName}`,
-						birthday: u.birthDate,
-						city: u.address.city,
-					};
-				});
-				setUsers(updatedUsers);
+			.then((data) => {
+				setUsers(updateUsersList(data.users));
 
 				const updatedCities: string[] = [
 					...(new Set(
-						users.map((u: User) => u.address.city)
+						data.users.map((u: User) => u.address.city)
 					) as Set<string>),
 				];
 
@@ -61,17 +56,53 @@ function App() {
 			users.filter(
 				(u) =>
 					u.name.toLowerCase().includes(nameInput.toLowerCase()) &&
-					u.city.toLowerCase().includes(cityInput.toLowerCase())
+					u.city.toLowerCase().includes(citySelector.toLowerCase())
 			)
 		);
-	}, [users, nameInput, cityInput]);
+	}, [users, nameInput, citySelector]);
 
 	const handleNameInput = (e: ChangeEvent<HTMLInputElement>) => {
 		setNameInput(e.target.value);
 	};
 
-	const handleCityInput = (e: ChangeEvent<HTMLSelectElement>) => {
-		setCityInput(e.target.value);
+	const handleCitySelector = (e: ChangeEvent<HTMLSelectElement>) => {
+		setCitySelector(e.target.value);
+	};
+
+	const handleOldestCheckbox = (e: ChangeEvent<HTMLInputElement>) => {
+		setOldestCheckbox(e.target.checked);
+	};
+
+	const updateUsersList = (list: User[]) => {
+		let updatedList: FilteredUser[] = list.map((u: User) => {
+			return {
+				id: u.id,
+				name: `${u.firstName} ${u.lastName}`,
+				birthday: moment(u.birthDate, 'YYYY-MM-DD'),
+				city: u.address.city,
+				isOldest: false,
+			};
+		});
+
+		updatedList = updatedList.map((u) => {
+			const neighbors = updatedList.filter((i) => u.city === i.city);
+
+			if (neighbors.length === 1) {
+				return {
+					...u,
+					isOldest: neighbors.length === 1 ? true : false,
+				};
+			} else {
+				return {
+					...u,
+					isOldest: !neighbors.some((i) =>
+						moment(i.birthday).isBefore(moment(u.birthday))
+					),
+				};
+			}
+		});
+
+		return updatedList;
 	};
 
 	if (loading) {
@@ -106,9 +137,9 @@ function App() {
 				<select
 					id="cities"
 					className="py-3 px-4 block w-full border border-slate-300 rounded-lg text-sm focus:border-slate-600"
-					onChange={handleCityInput}
+					onChange={handleCitySelector}
 				>
-					<option value="" className="px-4 py-4" selected>
+					<option value="" className="px-4 py-4">
 						Choose a city
 					</option>
 
@@ -127,6 +158,7 @@ function App() {
 						type="checkbox"
 						className="shrink-0 mt-0.5 border-slate-300 rounded"
 						id="oldestCheckbox"
+						onChange={handleOldestCheckbox}
 					/>
 
 					<span className="text-sm text-slate-800 ms-3">
@@ -154,7 +186,14 @@ function App() {
 					<tbody className="divide-y divide-slate-300">
 						{filteredUsers.length > 0 ? (
 							filteredUsers.map((user) => (
-								<tr key={user.id}>
+								<tr
+									key={user.id}
+									className={
+										user.isOldest && oldestCheckbox
+											? 'bg-slate-200'
+											: ''
+									}
+								>
 									<td className="px-4 py-2 text-slate-800">
 										{user.name}
 									</td>
@@ -162,7 +201,9 @@ function App() {
 										{user.city}
 									</td>
 									<td className="px-4 py-2 text-slate-800">
-										{user.birthday}
+										{moment(user.birthday).format(
+											'DD.MM.YYYY'
+										)}
 									</td>
 								</tr>
 							))
